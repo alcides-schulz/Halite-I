@@ -1,8 +1,9 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.IO;
 
+// v3
 public class MyBot
 {
     public const string 		mBotName = "zluhcs";
@@ -10,6 +11,9 @@ public class MyBot
 	
 	private static int[,] 		mExpansionValue;
 	private static Direction[,]	mExpansionDirection;
+	private static int			mProductionLimit = 10;
+	private static SortedDictionary<int, Location> mLocation = new SortedDictionary<int, Location>();
+	
 	// private static Random 		mRandom = new Random();
 	 
 	public static Site GetNeighbour(Map map, Location loc, Direction d) {
@@ -44,7 +48,9 @@ public class MyBot
 			}
 		}
 		
-		if (my_site.Strength < my_site.Production * 5) {
+		if (mProductionLimit > 5) mProductionLimit--;
+		
+		if (my_site.Strength < my_site.Production * mProductionLimit) {
 			move.Direction = Direction.Still;
 			return move;
 		}
@@ -73,18 +79,21 @@ public class MyBot
 	private static Direction GetDirection(Map map, Location location) {
 		var current_value = mExpansionValue[location.X, location.Y];
 		var direction = mExpansionDirection[location.X, location.Y];
+		var new_direction = Direction.Still;
 		
 		for (int i = 0; i < 4; i++) {
 			direction = NextDirection(direction);
+			if (direction == Direction.Still) continue;
 			var n = GetNeighbourLocation(map, location, direction);
 			var new_value = mExpansionValue[n.X, n.Y];
 			if (new_value > current_value) {
+				new_direction = direction;
 				break;
 			}
 		}
 
-		mExpansionDirection[location.X, location.Y] = direction;
-		return direction;
+		mExpansionDirection[location.X, location.Y] = new_direction;
+		return new_direction;
 	}
 	
 	private static Direction NextDirection(Direction d) {
@@ -118,13 +127,19 @@ public class MyBot
 			
 			//PrintBoard(map, round);
             var moves = new List<Move>();
-            for (ushort y = 0; y < map.Height; y++) {
-                for (ushort x = 0; x < map.Width; x++) {
-                    if (map[x, y].Owner == mBotID) {
-						moves.Add(GetMove(map, x, y));
-                    }
-                }
-            }
+            // for (ushort y = 0; y < map.Height; y++) {
+                // for (ushort x = 0; x < map.Width; x++) {
+                    // if (map[x, y].Owner == mBotID) {
+						// moves.Add(GetMove(map, x, y));
+                    // }
+                // }
+            // }
+			foreach(KeyValuePair<int, Location> p in mLocation) {
+				var l = p.Value;
+				if (map[l.X, l.Y].Owner == mBotID) {
+					moves.Add(GetMove(map, l.X, l.Y));
+				}
+			}
 
             Networking.SendMoves(moves); // Send moves
         }
@@ -151,6 +166,7 @@ public class MyBot
 					starting.Y = y;
 				}
 				mExpansionValue[x, y] = 0;
+				
 			}
 		}
 
@@ -176,6 +192,8 @@ public class MyBot
 		var queue = new Queue<Location>();
 		queue.Enqueue(starting);
 		mExpansionValue[starting.X, starting.Y] = 1;
+		int key = mExpansionValue[starting.X, starting.Y] * 1000000 + starting.Y * 1000 + starting.X;
+		mLocation.Add(key, starting);
 		
 		while(queue.Count != 0) {
 			var current = queue.Dequeue();
@@ -185,6 +203,8 @@ public class MyBot
 				if (mExpansionValue[n.X, n.Y] == 0) {
 					mExpansionValue[n.X, n.Y] = mExpansionValue[current.X, current.Y] + 1;
 					queue.Enqueue(n);
+					key = mExpansionValue[n.X, n.Y] * 1000000 + n.Y * 1000 + n.X;
+					mLocation.Add(key, n);
 				}
 			}
 		}
