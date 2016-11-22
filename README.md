@@ -1,0 +1,2 @@
+# halite
+Halite AI Programming
