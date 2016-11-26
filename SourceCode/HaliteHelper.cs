@@ -34,12 +34,12 @@ public static class Networking
     private static string ReadNextLine() {
         var str = Console.ReadLine();
         if (str == null) throw new ApplicationException("Could not read next line from stdin");
-		return str;
+        return str;
     }
 
     private static void SendString(string str) {
         Console.WriteLine(str);
-		Console.Out.Flush();
+        Console.Out.Flush();
     }
 
     /// <summary>
