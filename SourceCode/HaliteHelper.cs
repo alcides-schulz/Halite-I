@@ -5,16 +5,10 @@ using System.Linq;
 using System.Net;
 using System.Net.Sockets;
 
-/// <summary>
-/// Helpful for debugging.
-/// </summary>
 public static class Log
 {
     private static string _logPath;
 
-    /// <summary>
-    /// File must exist
-    /// </summary>
     public static void Setup(string logPath) {
         _logPath = logPath;
     }
@@ -42,9 +36,6 @@ public static class Networking
         Console.Out.Flush();
     }
 
-    /// <summary>
-    /// Call once at the start of a game to load the map and player tag from the first four stdin lines.
-    /// </summary>
     public static Map getInit(out ushort playerTag) {
 
         // Line 1: Player tag
@@ -63,7 +54,6 @@ public static class Networking
         map.Update(ReadNextLine());
     }
 
-
     /// <summary>
     /// Call to acknowledge the initail game map and start the game.
     /// </summary>
@@ -77,6 +67,10 @@ public static class Networking
     public static void SendMoves(IEnumerable<Move> moves) {
         SendString(Move.MovesToString(moves));
     }
+
+    public static void SendMoves(List<Site> sites) {
+        SendString(string.Join(" ", sites.Select(s => string.Format("{0} {1} {2}", s.X, s.Y, (int)s.Move))));
+    }
 }
 
 public enum Direction
@@ -88,26 +82,84 @@ public enum Direction
     West = 4
 }
 
-public struct Site
+public class Site
 {
-    public ushort Owner { get; internal set; }
-    public ushort Strength { get; internal set; }
-    public ushort Production { get; internal set; }
+    public ushort   X;
+    public ushort   Y;
+    public ushort   Owner { get; internal set; }
+    public ushort   Strength { get; internal set; }
+    public ushort   Production { get; internal set; }
+    
+    public Dictionary<Direction, Site>  Neighbors = new Dictionary<Direction, Site>();
+    
+    public double   	ExpansionValue;
+    public int      	AddedStrenght;
+	public int 			EnemyValue;
+	public double		BorderValue;
+	public double 		MoveValue;
+	public int			Distance;
+	public Direction	TargetDirection;
+	public double		TargetValue;
+	public bool			NearEnemy;
+    private bool        mHasMoved = false;
+    private Direction   mMove = Direction.Still;
+    
+    public Site(ushort x, ushort y) {
+        X = x;
+        Y = y;
+    }
+	
+	public void InitRound() {
+		AddedStrenght = 0;
+		MoveValue = 0;
+		NearEnemy = false;
+		EnemyValue = 0;
+		BorderValue = 0;
+        mHasMoved = false;
+        mMove = Direction.Still;
+    }
+    
+    public void SetMove(Direction d) {
+		if (mHasMoved) {
+			if (mMove == Direction.Still)
+				AddedStrenght -= Strength;
+			else
+				Neighbors[mMove].AddedStrenght -= Strength;
+		}
+        mHasMoved = true;
+        mMove = d;
+        if (d == Direction.Still) {
+            AddedStrenght += Strength;
+        }
+        else {
+            if (Strength < 255 && Neighbors[d].AddedStrenght + Strength > 255) {
+                mMove = Direction.Still;
+                AddedStrenght += Strength;
+            }
+            else {
+                Neighbors[d].AddedStrenght += Strength;
+            }
+        }
+    }
+    
+    public bool HasMoved { get {return mHasMoved;}}
+    public Direction Move {get {return mMove;}}
 }
 
-public struct Location
+public class Move
 {
-    public ushort X;
-    public ushort Y;
-}
-
-public struct Move
-{
-    public Location Location;
     public Direction Direction;
-
+    public int X;
+    public int Y;
+    
+    public Move(int x, int y, Direction d) {
+        X = x;
+        Y = y;
+        Direction = d;
+    }
+    
     internal static string MovesToString(IEnumerable<Move> moves) {
-        return string.Join(" ", moves.Select(m => string.Format("{0} {1} {2}", m.Location.X, m.Location.Y, (int)m.Direction)));
+        return string.Join(" ", moves.Select(m => string.Format("{0} {1} {2}", m.X, m.Y, (int)m.Direction)));
     }
 }
 
@@ -163,11 +215,6 @@ public class Map
     }
 
     /// <summary>
-    /// Get a read-only structure representing the current state of the site at the supplied location.
-    /// </summary>
-    public Site this[Location location] => this[location.X, location.Y];
-
-    /// <summary>
     /// Returns the width of the map.
     /// </summary>
     public ushort Width => (ushort)_sites.GetLength(0);
@@ -177,15 +224,13 @@ public class Map
     /// </summary>
     public ushort Height => (ushort)_sites.GetLength(1);
 
-    #region Implementation
-
     private readonly Site[,] _sites;
 
     private Map(ushort width, ushort height) {
         _sites = new Site[width, height];
         for (ushort x = 0; x < width; x++) {
             for (ushort y = 0; y < height; y++) {
-                _sites[x, y] = new Site();
+                _sites[x, y] = new Site(x, y);
             }
         }
     }
@@ -218,7 +263,5 @@ public class Map
 
         return map;
     }
-
-    #endregion
 
 }
